@@ -100,6 +100,69 @@ Open **http://localhost:5000** in your browser.
 
 ---
 
+## 🚀 Deployment with Free Services
+
+### 1. Use Free MongoDB Atlas
+1. Create a free MongoDB Atlas account.
+2. Create a free cluster.
+3. Create a database user and whitelist your IP (or use 0.0.0.0/0 for deployment).
+4. Copy the connection string and set it in `.env` or use `MONGO_URI` in your hosting provider.
+
+Example `.env` values:
+
+```
+MONGO_URI=mongodb+srv://<username>:<password>@<cluster-address>/?retryWrites=true&w=majority
+DB_NAME=election_fraud_db
+SECRET_KEY=change-this-to-a-long-random-string
+FLASK_DEBUG=False
+UPLOAD_FOLDER=static/uploads
+```
+
+### 2. Deploy to a free Python host
+
+#### Render (recommended free tier)
+1. Sign up at https://render.com.
+2. Create a new Web Service from your GitHub repo.
+3. Set the build command to:
+
+```bash
+pip install -r requirements.txt
+```
+
+4. Set the start command to:
+
+```bash
+python app.py
+```
+
+5. Add environment variables:
+- `MONGO_URI`
+- `DB_NAME`
+- `SECRET_KEY`
+- `UPLOAD_FOLDER=static/uploads`
+
+#### Railway
+1. Sign up at https://railway.app.
+2. Link your GitHub repo.
+3. Add the same environment variables.
+4. Use `python app.py` as the start command.
+
+### 3. Push your code
+
+Make sure your changes are committed and pushed:
+
+```bash
+git add .
+git commit -m "Prepare deployment with .env.example and Procfile"
+git push origin main
+```
+
+### 4. Access your deployed app
+
+Once the host finishes building, open the assigned URL and verify the app loads.
+
+---
+
 ## 🧠 How It Works
 
 ### Iris Recognition Pipeline
