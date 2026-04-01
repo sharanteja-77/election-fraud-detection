@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% set active = "verify" %}
+{% block title %}Verify Voter{% endblock %}
+
+{% block extra_styles %}
+<style>
+  .result-panel {
+    border-radius: 12px;
+    padding: 24px;
+    display: none;
+    animation: slideIn .3s ease;
+  }
+  @keyframes slideIn {
+    from { transform: translateY(10px); opacity:0; }
+    to   { transform: translateY(0);    opacity:1; }
+  }
+  .result-panel.success { background:rgba(0,200,150,.08); border:1px solid var(--primary); }
+  .result-panel.danger  { background:rgba(255,59,78,.08);  border:1px solid var(--danger);  }
+  .result-panel.warn    { background:rgba(255,184,0,.08);  border:1px solid var(--warn);    }
+
+  .result-icon { font-size: 48px; margin-bottom: 12px; }
+  .result-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 30px; letter-spacing: 2px;
+    color: var(--text-bright);
+  }
+  .result-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--text-dim);
+    margin-top: 8px;
+  }
+  .confidence-bar {
+    height: 6px; background: var(--surface2);
+    border-radius: 4px; margin-top: 14px; overflow: hidden;
+  }
+  .confidence-fill {
+    height: 100%; border-radius: 4px;
+    transition: width .8s ease;
+  }
+
+  .scanning-anim {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    animation: scan 1.5s linear infinite;
+    display: none;
+  }
+  .scanning-anim.active { display: block; }
+  @keyframes scan {
+    0%   { transform: translateY(0); }
+    100% { transform: translateY(480px); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Voter Verification</h2>
+  <p>Iris scan authentication — live webcam</p>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px">
+
+  <!-- Camera -->
+  <div class="card">
+    <div class="card-title">Live Iris Scan</div>
+    <div class="webcam-container" style="position:relative">
+      <video id="webcam" autoplay playsinline></video>
+      <div class="webcam-overlay"><div class="iris-ring" id="irisRing"></div></div>
+      <div class="scanning-anim" id="scanAnim"></div>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap">
+      <button class="btn btn-outline" onclick="startCamera()">▶ Start Camera</button>
+      <button class="btn btn-primary" id="verifyBtn" onclick="verifyVoter()">
+        ⊙ Verify Iris
+      </button>
+    </div>
+    <canvas id="canvas" style="display:none"></canvas>
+    <p style="font-size:12px;color:var(--text-dim);margin-top:12px">
+      Position voter's eye in the circular guide, then click Verify Iris.
+    </p>
+  </div>
+
+  <!-- Result -->
+  <div>
+    <div id="resultPanel" class="result-panel">
+      <div class="result-icon" id="resultIcon"></div>
+      <div class="result-name" id="resultName"></div>
+      <div class="result-meta" id="resultMeta"></div>
+      <div class="confidence-bar">
+        <div class="confidence-fill" id="confBar" style="width:0%"></div>
+      </div>
+      <p style="font-size:11px;color:var(--text-dim);margin-top:6px" id="confLabel"></p>
+    </div>
+
+    <div class="card" id="instructCard">
+      <div class="card-title">How Verification Works</div>
+      <ol style="list-style:none;counter-reset:step;font-size:13px;color:var(--text-dim);line-height:2.2">
+        <li style="counter-increment:step" class="step">Start camera → align eye</li>
+        <li style="counter-increment:step" class="step">System captures & preprocesses iris</li>
+        <li style="counter-increment:step" class="step">CNN extracts 128-D feature vector</li>
+        <li style="counter-increment:step" class="step">Cosine similarity against all voters</li>
+        <li style="counter-increment:step" class="step">Duplicate vote check in MongoDB</li>
+        <li style="counter-increment:step" class="step">Result displayed instantly</li>
+      </ol>
+    </div>
+
+    <!-- Fraud log -->
+    <div class="card" style="margin-top:20px">
+      <div class="card-title">Recent Fraud Alerts</div>
+      <div id="fraudList" style="font-size:13px;color:var(--text-dim)">Loading…</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  async function startCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({ video:{width:640,height:480,facingMode:"user"} });
+    document.getElementById("webcam").srcObject = stream;
+  }
+
+  async function verifyVoter() {
+    const video = document.getElementById("webcam");
+    if (!video.srcObject) { alert("Start camera first."); return; }
+
+    const canvas = document.getElementById("canvas");
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    const b64 = canvas.toDataURL("image/jpeg", 0.9);
+
+    // Start scanning animation
+    document.getElementById("scanAnim").classList.add("active");
+    document.getElementById("verifyBtn").disabled = true;
+    document.getElementById("verifyBtn").textContent = "Scanning…";
+    document.getElementById("resultPanel").style.display = "none";
+
+    const resp = await fetch("/api/verify", {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ frame: b64 })
+    });
+    const j = await resp.json();
+
+    document.getElementById("scanAnim").classList.remove("active");
+    document.getElementById("verifyBtn").disabled = false;
+    document.getElementById("verifyBtn").textContent = "⊙ Verify Iris";
+
+    if (!j.success) { alert("Server error: " + j.message); return; }
+
+    const res = j.result;
+    showResult(res);
+    loadFraud();
+  }
+
+  function showResult(res) {
+    const panel = document.getElementById("resultPanel");
+    panel.style.display = "block";
+    document.getElementById("instructCard").style.display = "none";
+
+    if (res.status === "success") {
+      panel.className = "result-panel success";
+      document.getElementById("resultIcon").textContent = "✅";
+      document.getElementById("resultName").textContent = res.voter_name || "Verified";
+      document.getElementById("resultMeta").innerHTML =
+        `ID: ${res.voter_id}<br>${res.message}`;
+      document.getElementById("confBar").style.background = "var(--primary)";
+    } else if (res.status === "duplicate") {
+      panel.className = "result-panel danger";
+      document.getElementById("resultIcon").textContent = "⚠️";
+      document.getElementById("resultName").textContent = "FRAUD DETECTED";
+      document.getElementById("resultMeta").innerHTML =
+        `ID: ${res.voter_id} — ${res.message}`;
+      document.getElementById("confBar").style.background = "var(--danger)";
+    } else {
+      panel.className = "result-panel warn";
+      document.getElementById("resultIcon").textContent = "❓";
+      document.getElementById("resultName").textContent = "NOT RECOGNISED";
+      document.getElementById("resultMeta").textContent = res.message;
+      document.getElementById("confBar").style.background = "var(--warn)";
+    }
+
+    const conf = res.confidence || 0;
+    setTimeout(() => {
+      document.getElementById("confBar").style.width = conf + "%";
+    }, 100);
+    document.getElementById("confLabel").textContent = `Match confidence: ${conf}%`;
+  }
+
+  async function loadFraud() {
+    const r = await fetch("/api/fraud");
+    const j = await r.json();
+    const el = document.getElementById("fraudList");
+    if (!j.data || !j.data.length) {
+      el.textContent = "No fraud alerts."; return;
+    }
+    el.innerHTML = j.data.slice(0,5).map(f =>
+      `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span class="mono" style="color:var(--danger)">${f.voter_id}</span>
+        <span class="badge badge-danger">${f.status}</span>
+        <span style="font-size:11px;color:var(--text-dim)">${new Date(f.timestamp).toLocaleTimeString()}</span>
+      </div>`
+    ).join("") + (j.count > 5 ? `<p style="margin-top:8px;font-size:12px">+${j.count-5} more</p>` : "");
+  }
+
+  loadFraud();
+</script>
+{% endblock %}

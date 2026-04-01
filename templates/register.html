@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% set active = "register" %}
+{% block title %}Register Voter{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Register Voter</h2>
+  <p>Capture iris biometric and store voter details in the system</p>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:28px">
+
+  <!-- Form -->
+  <div class="card">
+    <div class="card-title">Voter Information</div>
+    <div id="alertBox" class="alert"></div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Voter ID / Aadhaar</label>
+        <input id="voterId" class="form-control" placeholder="e.g. AP-2024-00123" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Age</label>
+        <input id="age" type="number" class="form-control" placeholder="18" min="18" max="120" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Full Name</label>
+      <input id="name" class="form-control" placeholder="Enter full name" />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Constituency</label>
+      <input id="constituency" class="form-control" placeholder="e.g. Hyderabad Central" />
+    </div>
+
+    <hr />
+
+    <div class="form-group">
+      <label class="form-label">Iris Capture</label>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">
+        Position voter's eye within the ring guide and click Capture.
+      </p>
+      <div class="webcam-container" style="max-width:100%">
+        <video id="webcam" autoplay playsinline></video>
+        <div class="webcam-overlay"><div class="iris-ring"></div></div>
+      </div>
+      <canvas id="canvas" style="display:none"></canvas>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
+      <button class="btn btn-outline" onclick="startCamera()">▶ Start Camera</button>
+      <button class="btn btn-outline" onclick="captureIris()">⊙ Capture Iris</button>
+      <button class="btn btn-primary" id="submitBtn" onclick="registerVoter()" disabled>
+        ✓ Register Voter
+      </button>
+    </div>
+  </div>
+
+  <!-- Preview -->
+  <div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title">Captured Iris</div>
+      <div id="irisPreview" style="text-align:center;padding:30px;color:var(--text-dim);font-size:13px">
+        No capture yet
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Registration Guide</div>
+      <ul style="list-style:none;font-size:13px;color:var(--text-dim);line-height:2">
+        <li>① Ensure good lighting on voter's face</li>
+        <li>② Position eye within the dashed circle</li>
+        <li>③ Ask voter to look directly at camera</li>
+        <li>④ Capture → verify preview looks sharp</li>
+        <li>⑤ Fill in all fields before submitting</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let capturedB64 = null;
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width:640, height:480, facingMode:"user" } });
+      document.getElementById("webcam").srcObject = stream;
+    } catch(e) {
+      showAlert("danger", "Camera access denied: " + e.message);
+    }
+  }
+
+  function captureIris() {
+    const video  = document.getElementById("webcam");
+    const canvas = document.getElementById("canvas");
+    if (!video.srcObject) { showAlert("warn", "Start camera first."); return; }
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    capturedB64 = canvas.toDataURL("image/jpeg", 0.9);
+    document.getElementById("irisPreview").innerHTML =
+      `<img src="${capturedB64}" style="max-width:100%;border-radius:8px;border:1px solid var(--border)" />
+       <p style="margin-top:8px;color:var(--primary);font-size:12px">✓ Iris captured</p>`;
+    document.getElementById("submitBtn").disabled = false;
+    showAlert("success", "Iris captured successfully. Fill in the form and click Register.");
+  }
+
+  async function registerVoter() {
+    const voterId     = document.getElementById("voterId").value.trim();
+    const name        = document.getElementById("name").value.trim();
+    const age         = document.getElementById("age").value;
+    const constituency = document.getElementById("constituency").value.trim();
+
+    if (!voterId || !name || !age || !constituency) {
+      showAlert("danger", "Please fill in all fields."); return;
+    }
+    if (!capturedB64) {
+      showAlert("danger", "Please capture iris first."); return;
+    }
+
+    document.getElementById("submitBtn").disabled = true;
+    document.getElementById("submitBtn").textContent = "Registering…";
+
+    const resp = await fetch("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voter_id: voterId, name, age: parseInt(age),
+                              constituency, iris_image_b64: capturedB64 })
+    });
+    const j = await resp.json();
+    document.getElementById("submitBtn").disabled = false;
+    document.getElementById("submitBtn").textContent = "✓ Register Voter";
+
+    if (j.success) {
+      showAlert("success", j.message);
+      capturedB64 = null;
+      document.getElementById("submitBtn").disabled = true;
+      ["voterId","name","age","constituency"].forEach(id =>
+        document.getElementById(id).value = "");
+      document.getElementById("irisPreview").innerHTML =
+        `<p style="color:var(--primary)">✓ Registered. Ready for next voter.</p>`;
+    } else {
+      showAlert("danger", j.message);
+    }
+  }
+
+  function showAlert(type, msg) {
+    const el = document.getElementById("alertBox");
+    el.className = `alert alert-${type} show`;
+    el.textContent = msg;
+    setTimeout(() => el.classList.remove("show"), 6000);
+  }
+</script>
+{% endblock %}

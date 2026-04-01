@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Election Fraud Detection{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:         #080C10;
+      --surface:    #0E1520;
+      --surface2:   #141E2E;
+      --border:     #1E2D42;
+      --primary:    #00C896;
+      --primary-dk: #009E76;
+      --danger:     #FF3B4E;
+      --warn:       #FFB800;
+      --text:       #C8D8E8;
+      --text-dim:   #5A7090;
+      --text-bright:#EEF4FF;
+      --mono:       'JetBrains Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+      transition: background 0.4s ease;
+      overflow-x: hidden;
+    }
+
+    .main {
+      margin-left: 220px; padding: 36px 40px; min-height: 100vh;
+      opacity: 0; transform: translateY(16px);
+      animation: pageFadeIn 0.8s ease forwards 0.1s;
+    }
+
+    .page-header {
+      opacity: 0; transform: translateY(20px);
+      animation: pageSlideIn 0.7s ease forwards 0.15s;
+    }
+
+    .stat-grid .stat-card {
+      opacity: 0; transform: translateY(24px);
+      animation: statCardIn 0.75s ease forwards;
+    }
+    .stat-grid .stat-card:nth-child(1) { animation-delay: 0.18s; }
+    .stat-grid .stat-card:nth-child(2) { animation-delay: 0.24s; }
+    .stat-grid .stat-card:nth-child(3) { animation-delay: 0.30s; }
+    .stat-grid .stat-card:nth-child(4) { animation-delay: 0.36s; }
+    .stat-grid .stat-card:nth-child(5) { animation-delay: 0.42s; }
+
+    .badge {
+      display: inline-block; padding: 3px 10px;
+      border-radius: 20px; font-size: 11px;
+      font-family: var(--mono); font-weight: 600;
+      letter-spacing: 0.5px;
+      transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+    }
+    .badge:hover {
+      transform: translateY(-1px) scale(1.02);
+    }
+
+    table tbody tr {
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    table tbody tr:hover {
+      transform: translateX(4px);
+      background: rgba(0, 200, 150, 0.08);
+    }
+
+    /* ── Sidebar nav ── */
+    .sidebar {
+      position: fixed; top: 0; left: 0;
+      width: 220px; height: 100vh;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 28px 0;
+      z-index: 100;
+    }
+    .sidebar-logo {
+      padding: 0 24px 28px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-logo .logo-badge {
+      display: inline-block;
+      background: var(--primary);
+      color: #000;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      padding: 3px 8px;
+      border-radius: 3px;
+      margin-bottom: 8px;
+    }
+    .sidebar-logo h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 22px;
+      letter-spacing: 1.5px;
+      color: var(--text-bright);
+      line-height: 1.2;
+    }
+    .nav-section { margin-top: 20px; padding: 0 12px; }
+    .nav-label {
+      font-size: 10px; letter-spacing: 2px;
+      color: var(--text-dim); text-transform: uppercase;
+      padding: 0 12px; margin-bottom: 6px;
+    }
+    .nav-link {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 8px;
+      color: var(--text-dim); text-decoration: none;
+      font-size: 14px; font-weight: 500;
+      transition: all 0.2s;
+    }
+    .nav-link:hover, .nav-link.active {
+      background: var(--surface2);
+      color: var(--text-bright);
+    }
+    .nav-link.active { color: var(--primary); }
+    .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+    /* ── Main content ── */
+    .main {
+      margin-left: 220px; padding: 36px 40px; min-height: 100vh;
+      opacity: 0; transform: translateY(16px);
+      animation: pageFadeIn 0.8s ease forwards 0.1s;
+    }
+
+    .page-header {
+      margin-bottom: 32px;
+      opacity: 0; transform: translateY(20px);
+      animation: pageSlideIn 0.7s ease forwards 0.15s;
+    }
+    .page-header h2 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 36px; letter-spacing: 2px;
+      color: var(--text-bright);
+    }
+    .page-header p { color: var(--text-dim); font-size: 14px; margin-top: 4px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(0, 200, 150, 0.18);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+    }
+    .card-title {
+      font-size: 11px; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--text-dim);
+      margin-bottom: 16px;
+    }
+
+    /* ── Stat grid ── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px; margin-bottom: 32px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+    .stat-card .stat-label {
+      font-size: 11px; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--text-dim);
+    }
+    .stat-card .stat-value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 42px; letter-spacing: 2px;
+      color: var(--text-bright); line-height: 1.1;
+      margin: 6px 0 2px;
+    }
+    .stat-card .stat-sub { font-size: 12px; color: var(--text-dim); }
+    .stat-card.danger .stat-value  { color: var(--danger); }
+    .stat-card.success .stat-value { color: var(--primary); }
+    .stat-card.warn .stat-value    { color: var(--warn); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 22px; border-radius: 8px;
+      font-size: 14px; font-weight: 600;
+      cursor: pointer; border: none;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+      text-decoration: none; user-select: none;
+      transform: translateZ(0);
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 34px rgba(0, 0, 0, 0.15);
+    }
+    .btn:active {
+      transform: translateY(0);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+    }
+    .btn-primary { background: var(--primary); color: #000; }
+    .btn-primary:hover { background: var(--primary-dk); }
+    .btn-danger  { background: var(--danger);  color: #fff; }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ── Forms ── */
+    .form-group { margin-bottom: 18px; }
+    .form-label {
+      display: block; font-size: 12px;
+      font-weight: 600; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--text-dim);
+      margin-bottom: 7px;
+    }
+    .form-control {
+      width: 100%; padding: 11px 14px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text-bright);
+      font-family: 'DM Sans', sans-serif; font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    .form-control:focus {
+      outline: none; border-color: var(--primary);
+    }
+    .form-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left; font-size: 11px; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--text-dim);
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 12px 14px; font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(0, 200, 150, 0.08); }
+    tr:hover td:first-child { color: var(--text-bright); }
+    tr:hover td .badge { transform: translateX(0); }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block; padding: 3px 10px;
+      border-radius: 20px; font-size: 11px;
+      font-family: var(--mono); font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .badge-success { background: rgba(0,200,150,.15); color: var(--primary); }
+    .badge-danger  { background: rgba(255,59,78,.15);  color: var(--danger); }
+    .badge-warn    { background: rgba(255,184,0,.12);  color: var(--warn); }
+    .badge-muted   { background: rgba(90,112,144,.15); color: var(--text-dim); }
+
+    /* ── Alert ── */
+    .alert {
+      padding: 14px 18px; border-radius: 8px;
+      font-size: 14px; display: none; margin-bottom: 20px;
+    }
+    .alert.show { display: block; }
+    .alert-success { background: rgba(0,200,150,.1); border: 1px solid var(--primary); color: var(--primary); }
+    .alert-danger  { background: rgba(255,59,78,.1);  border: 1px solid var(--danger);  color: var(--danger); }
+    .alert-warn    { background: rgba(255,184,0,.1);  border: 1px solid var(--warn);    color: var(--warn); }
+
+    /* ── Webcam ── */
+    .webcam-container {
+      position: relative; border-radius: 12px;
+      overflow: hidden; background: #000;
+      border: 2px solid var(--border);
+    }
+    #webcam { width: 100%; display: block; }
+    .webcam-overlay {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .iris-ring {
+      width: 160px; height: 160px;
+      border-radius: 50%;
+      border: 2px dashed var(--primary);
+      opacity: 0.6;
+      animation: pulse-ring 2s ease-in-out infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { transform: scale(1); opacity: .5; }
+      50%       { transform: scale(1.05); opacity: .9; }
+    }
+
+    /* ── Mono text ── */
+    .mono { font-family: var(--mono); }
+
+    /* ── Divider ── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+    /* ── Responsive ── */
+    @keyframes pageFadeIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pageSlideIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes statCardIn {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main    { margin-left: 0; padding: 20px; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+  {% block extra_styles %}{% endblock %}
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-badge">SECURE</div>
+    <h1>Election<br>Fraud<br>Detection</h1>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">System</div>
+    <a href="/"        class="nav-link {% if active=='dashboard' %}active{% endif %}">
+      <span class="nav-icon">◈</span> Dashboard
+    </a>
+    <a href="/verify"  class="nav-link {% if active=='verify' %}active{% endif %}">
+      <span class="nav-icon">◉</span> Verify Voter
+    </a>
+    <a href="/register" class="nav-link {% if active=='register' %}active{% endif %}">
+      <span class="nav-icon">◎</span> Register Voter
+    </a>
+    <a href="/logs"    class="nav-link {% if active=='logs' %}active{% endif %}">
+      <span class="nav-icon">≡</span> Voting Logs
+    </a>
+  </div>
+</nav>
+
+<main class="main">
+  {% block content %}{% endblock %}
+</main>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,18 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+
+# Environment variables
+.env
+
+# Uploads and generated files
+static/uploads/
+
+# Editor files
+.vscode/
+*.log
+.DS_Store

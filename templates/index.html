@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% set active = "dashboard" %}
+{% block title %}Dashboard — Election Fraud Detection{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Command Dashboard</h2>
+  <p>Real-time election security overview</p>
+</div>
+
+<!-- Stat cards -->
+<div class="stat-grid" id="statGrid">
+  <div class="stat-card">
+    <div class="stat-label">Registered Voters</div>
+    <div class="stat-value" id="totalVoters">—</div>
+    <div class="stat-sub">in database</div>
+  </div>git
+  <div class="stat-card success">
+    <div class="stat-label">Votes Cast</div>
+    <div class="stat-value" id="votedCount">—</div>
+    <div class="stat-sub">successful verifications</div>
+  </div>
+  <div class="stat-card warn">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value" id="pendingCount">—</div>
+    <div class="stat-sub">yet to vote</div>
+  </div>
+  <div class="stat-card danger">
+    <div class="stat-label">Fraud Alerts</div>
+    <div class="stat-value" id="fraudCount">—</div>
+    <div class="stat-sub">duplicate / unrecognised</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Turnout</div>
+    <div class="stat-value" id="turnout">—</div>
+    <div class="stat-sub">% of registered voters</div>
+  </div>
+</div>
+
+<!-- Recent activity table -->
+<div class="card">
+  <div class="card-title">Recent Activity</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Voter ID</th>
+        <th>Status</th>
+        <th>Confidence</th>
+        <th>Timestamp</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody id="logTable">
+      <tr><td colspan="5" style="color:var(--text-dim);text-align:center;padding:30px">
+        Loading…
+      </td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  async function loadStats() {
+    const r = await fetch("/api/stats");
+    const j = await r.json();
+    if (!j.success) return;
+    const d = j.data;
+    document.getElementById("totalVoters").textContent = d.total_voters;
+    document.getElementById("votedCount").textContent  = d.voted_count;
+    document.getElementById("pendingCount").textContent = d.pending_count;
+    document.getElementById("fraudCount").textContent  = d.fraud_attempts;
+    document.getElementById("turnout").textContent     = d.turnout_pct + "%";
+  }
+
+  async function loadLogs() {
+    const r    = await fetch("/api/logs?limit=20");
+    const j    = await r.json();
+    const tbody = document.getElementById("logTable");
+    if (!j.success || !j.data.length) {
+      tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text-dim);text-align:center;padding:30px">No activity yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = j.data.map(log => {
+      const badge = log.status === "success"
+        ? `<span class="badge badge-success">✓ success</span>`
+        : log.status === "duplicate"
+        ? `<span class="badge badge-danger">⚠ duplicate</span>`
+        : log.status === "unrecognised"
+        ? `<span class="badge badge-warn">? unrecognised</span>`
+        : `<span class="badge badge-muted">${log.status}</span>`;
+      const ts = new Date(log.timestamp).toLocaleString();
+      return `<tr>
+        <td class="mono">${log.voter_id}</td>
+        <td>${badge}</td>
+        <td class="mono">${(log.confidence*100).toFixed(1)}%</td>
+        <td style="font-size:12px;color:var(--text-dim)">${ts}</td>
+        <td class="mono" style="font-size:12px">${log.ip_address || '—'}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  loadStats();
+  loadLogs();
+  setInterval(() => { loadStats(); loadLogs(); }, 10000);
+</script>
+{% endblock %}

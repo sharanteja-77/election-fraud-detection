@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% set active = "logs" %}
+{% block title %}Voting Logs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Voting Logs</h2>
+  <p>Full audit trail of all verification attempts</p>
+</div>
+
+<div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
+  <button class="btn btn-outline" onclick="loadLogs('all')">All Logs</button>
+  <button class="btn btn-outline" onclick="loadLogs('success')">✓ Successful</button>
+  <button class="btn btn-danger"  onclick="loadLogs('fraud')">⚠ Fraud Only</button>
+  <button class="btn btn-outline" onclick="loadVoters()">◎ Voters List</button>
+  <button class="btn btn-outline" onclick="clearVoterList()">🗑 Clear Voter List</button>
+  <button class="btn btn-danger" onclick="deleteRegistrations()">⚠ Delete Registrations</button>
+</div>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div class="card-title" style="margin-bottom:0" id="tableTitle">All Voting Logs</div>
+    <span id="countBadge" class="badge badge-muted">—</span>
+  </div>
+  <table>
+    <thead id="tableHead"></thead>
+    <tbody id="tableBody">
+      <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim)">Loading…</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let currentView   = "logs";
+  let currentFilter = "all";
+
+  async function clearVoterList() {
+    currentView = "voters";
+    document.getElementById("tableTitle").textContent = "Voter List Cleared";
+    document.getElementById("countBadge").textContent = "0 voters";
+    document.getElementById("tableHead").innerHTML = `<tr>
+      <th>Voter ID</th><th>Name</th><th>Age</th>
+      <th>Constituency</th><th>Voted?</th><th>Registered</th>
+    </tr>`;
+    document.getElementById("tableBody").innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim)">Voter list cleared.</td></tr>`;
+  }
+
+  async function deleteRegistrations() {
+    if (!confirm("Delete all registered voters? This cannot be undone.")) {
+      return;
+    }
+    const resp = await fetch("/api/clear_registrations", { method: "POST" });
+    const result = await resp.json();
+    if (!result.success) {
+      alert("Could not delete registrations: " + (result.error || result.message));
+      return;
+    }
+    alert(result.message || `${result.deleted} voter registrations deleted.`);
+    loadVoters();
+  }
+
+  async function loadLogs(filter) {
+    currentView   = "logs";
+    currentFilter = filter;
+    document.getElementById("tableTitle").textContent = filter === "fraud" ? "Fraud Alerts" : filter === "success" ? "Successful Votes" : "All Voting Logs";
+    const url   = filter === "fraud" ? "/api/fraud" : "/api/logs?limit=200";
+    const r     = await fetch(url);
+    const j     = await r.json();
+    let   data  = j.data || [];
+    if (filter === "success") data = data.filter(d => d.status === "success");
+
+    document.getElementById("countBadge").textContent = data.length + " records";
+    document.getElementById("tableHead").innerHTML = `<tr>
+      <th>Voter ID</th><th>Status</th><th>Confidence</th>
+      <th>IP Address</th><th>Timestamp</th>
+    </tr>`;
+
+    const tbody = document.getElementById("tableBody");
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-dim)">No records found.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = data.map(log => {
+      const badge = log.status === "success"
+        ? `<span class="badge badge-success">✓ success</span>`
+        : log.status === "duplicate"
+        ? `<span class="badge badge-danger">⚠ duplicate</span>`
+        : log.status === "unrecognised"
+        ? `<span class="badge badge-warn">? unrecognised</span>`
+        : `<span class="badge badge-muted">${log.status}</span>`;
+      const conf = typeof log.confidence === "number" ? (log.confidence*100).toFixed(1)+"%" : "—";
+      const ts   = new Date(log.timestamp).toLocaleString();
+      return `<tr>
+        <td class="mono">${log.voter_id}</td>
+        <td>${badge}</td>
+        <td class="mono">${conf}</td>
+        <td class="mono" style="font-size:12px">${log.ip_address||"—"}</td>
+        <td style="font-size:12px;color:var(--text-dim)">${ts}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  async function loadVoters() {
+    currentView   = "voters";
+    currentFilter = "all";
+    document.getElementById("tableTitle").textContent = "Registered Voters";
+    const r    = await fetch("/api/voters");
+    const j    = await r.json();
+    const data = j.data || [];
+    document.getElementById("countBadge").textContent = data.length + " voters";
+    document.getElementById("tableHead").innerHTML = `<tr>
+      <th>Voter ID</th><th>Name</th><th>Age</th>
+      <th>Constituency</th><th>Voted?</th><th>Registered</th>
+    </tr>`;
+    const tbody = document.getElementById("tableBody");
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-dim)">No voters registered yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = data.map(v => {
+      const votedBadge = v.has_voted
+        ? `<span class="badge badge-success">✓ voted</span>`
+        : `<span class="badge badge-muted">pending</span>`;
+      const reg = v.registered_at ? new Date(v.registered_at).toLocaleDateString() : "—";
+      return `<tr>
+        <td class="mono">${v.voter_id}</td>
+        <td>${v.name}</td>
+        <td>${v.age}</td>
+        <td>${v.constituency}</td>
+        <td>${votedBadge}</td>
+        <td style="font-size:12px;color:var(--text-dim)">${reg}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  loadLogs("all");
+</script>
+{% endblock %}
