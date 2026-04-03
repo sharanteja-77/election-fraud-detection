@@ -45,13 +45,8 @@ election_fraud_detection/
 
 ## ⚙️ Setup & Installation
 
-### 1. Clone / unzip the project
 
-```bash
-cd election_fraud_detection
-```
-
-### 2. Create virtual environment
+### 1. Create virtual environment
 
 ```bash
 python -m venv venv
@@ -61,13 +56,13 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-### 3. Install dependencies
+### 2. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment
+### 3. Configure environment
 
 Edit `.env`:
 
@@ -77,20 +72,20 @@ DB_NAME=election_fraud_db
 SECRET_KEY=change-this-to-a-long-random-string
 ```
 
-### 5. Start MongoDB
+### 4. Start MongoDB
 
 ```bash
 # Make sure MongoDB is running locally
 mongod --dbpath /data/db
 ```
 
-### 6. (Optional) Seed demo voters
+### 5. (Optional) Seed demo voters
 
 ```bash
 python seed_data.py
 ```
 
-### 7. Run the application
+### 6. Run the application
 
 ```bash
 python app.py
